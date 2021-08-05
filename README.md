@@ -44,6 +44,15 @@ python crawl.py $OUTPUT_DIR
 python clean.py $RAW_DIR $CLEAN_DIR
 ```
 
+### 分かち書き
+
+クリーニングされた対話を分かち書きします。
+半角を全角に正規化し、Juman++で形態素解析を行います。
+
+```
+python mrph.py $CLEAN_DIR $MRPH_DIR
+```
+
 ## 参考
 
 ### Pythonでつくる対話システム
@@ -55,3 +64,4 @@ python clean.py $RAW_DIR $CLEAN_DIR
 
 - https://saurabh-kumar.com/python-dotenv/
 - https://www.tweepy.org/
+- https://nlp.ist.i.kyoto-u.ac.jp/?PyKNP

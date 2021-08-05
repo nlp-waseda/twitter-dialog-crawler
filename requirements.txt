@@ -1,3 +1,5 @@
+pyknp
 python-dotenv
 tqdm
 tweepy
+zenhan
