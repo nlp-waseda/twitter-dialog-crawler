@@ -2,25 +2,25 @@ import argparse
 import os
 from datetime import datetime
 
-from dotenv import load_dotenv
+# from dotenv import load_dotenv
+from dotenv import dotenv_values
 from tqdm import tqdm
 import tweepy
 
 
 def filter_status(status):
-    sources = ['Twitter for Android', 'Twitter for iPhone', 'Twitter Web App']
-    if status.source not in sources:  # may be bot
+    if status.source not in ['Twitter for Android', 'Twitter for iPhone', 'Twitter Web App']:  # by human
         return False
     
     if len(status.entities['hashtags']) > 0:  # has hashtags
         return False
 
-    if 'media' in status.entities:  # has media
-        return False
-    
     if len(status.entities['urls']) > 0:  # has urls
         return False
-    
+
+    if 'media' in status.entities:  # has media
+        return False
+
     return True
 
 
@@ -31,19 +31,23 @@ def filter_dialog(full_texts, user_ids):
     if len(set(user_ids)) != 2:  # not bi-party
         return False
 
-    if any(user_ids[i] == user_ids[i+1] for i in range(len(user_ids) - 1)):  # not in turns
+    if any(user_ids[i] == user_ids[i+1] for i in range(len(user_ids) - 1)):  # not alternating
         return False
     
     return True
 
 
-def get_user_ids(api):
+def get_user_ids(api, q):
     user_ids = set()
 
-    search_results = api.search(q='い', lang='ja', result_type='recent', count=100, tweet_mode='extended')
-    for status in tqdm(search_results, desc='get user ids'):
-        if filter_status(status):
-            user_ids.add(status.author.id)
+    try:
+        search_results = api.search(q=q, lang='ja', result_type='recent', count=100, tweet_mode='extended')
+        for status in tqdm(search_results, desc='get user ids'):
+            if filter_status(status):
+                user_ids.add(status.author.id)
+
+    except tweepy.TweepError:
+        pass
 
     return user_ids
 
@@ -101,16 +105,23 @@ def write_dialogs(dialogs, output_dir):
         for dialog in dialogs:
             f.write('\t'.join(dialog) + '\n')
 
-    print(f'{len(dialogs)} dialogs written')
+    print(f'{len(dialogs)} dialogs written.')
 
 
 def main(args):
-    load_dotenv()
+    # load_dotenv()
 
-    consumer_key = os.environ['CONSUMER_KEY']
-    consumer_secret = os.environ['CONSUMER_SECRET']
-    access_token = os.environ['ACCESS_TOKEN']
-    access_token_secret = os.environ['ACCESS_TOKEN_SECRET']
+    # consumer_key = os.environ['CONSUMER_KEY']
+    # consumer_secret = os.environ['CONSUMER_SECRET']
+    # access_token = os.environ['ACCESS_TOKEN']
+    # access_token_secret = os.environ['ACCESS_TOKEN_SECRET']
+
+    config = dotenv_values(args.dotenv_path)
+
+    consumer_key = config['CONSUMER_KEY']
+    consumer_secret = config['CONSUMER_SECRET']
+    access_token = config['ACCESS_TOKEN']
+    access_token_secret = config['ACCESS_TOKEN_SECRET']
 
     auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
     auth.set_access_token(access_token, access_token_secret)
@@ -118,7 +129,7 @@ def main(args):
     api = tweepy.API(auth, wait_on_rate_limit=True, wait_on_rate_limit_notify=True)
 
     while True:
-        user_ids = get_user_ids(api)
+        user_ids = get_user_ids(api, q=args.q)
 
         text_map = {}  # status_id -> full_text
         user_map = {}  # status_id -> user_id
@@ -137,6 +148,8 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('output_dir')
+    parser.add_argument('--dotenv_path', default='.env')
+    parser.add_argument('--q', default='い')
     args = parser.parse_args()
 
     main(args)
