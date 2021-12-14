@@ -40,14 +40,14 @@ def filter_dialog(full_texts, user_ids):
 def get_user_ids(api, q):
     user_ids = set()
 
-    try:
-        search_results = api.search(q=q, lang='ja', result_type='recent', count=100, tweet_mode='extended')
-        for status in tqdm(search_results, desc='get user ids'):
-            if filter_status(status):
-                user_ids.add(status.author.id)
+    # try:
+    search_results = api.search(q=q, lang='ja', result_type='recent', count=100, tweet_mode='extended')
+    for status in tqdm(search_results, desc='get user ids'):
+        if filter_status(status):
+            user_ids.add(status.author.id)
 
-    except tweepy.TweepError:
-        pass
+    # except tweepy.TweepError as e:
+    #     raise
 
     return user_ids
 
@@ -129,20 +129,24 @@ def main(args):
     api = tweepy.API(auth, wait_on_rate_limit=True, wait_on_rate_limit_notify=True)
 
     while True:
-        user_ids = get_user_ids(api, q=args.q)
+        try:
+            user_ids = get_user_ids(api, q=args.q)
 
-        text_map = {}  # status_id -> full_text
-        user_map = {}  # status_id -> user_id
+            text_map = {}  # status_id -> full_text
+            user_map = {}  # status_id -> user_id
 
-        reply_tree = {}  # status_id -> in_reply_to_status_id
+            reply_tree = {}  # status_id -> in_reply_to_status_id
 
-        in_reply_to_user_ids = get_user_timeline(api, user_ids, text_map, user_map, reply_tree)
-        get_user_timeline(api, in_reply_to_user_ids - user_ids, text_map, user_map, reply_tree)
+            in_reply_to_user_ids = get_user_timeline(api, user_ids, text_map, user_map, reply_tree)
+            get_user_timeline(api, in_reply_to_user_ids - user_ids, text_map, user_map, reply_tree)
 
-        # traverse tree
-        dialogs = build_dialogs(text_map, user_map, reply_tree)
+            # traverse tree
+            dialogs = build_dialogs(text_map, user_map, reply_tree)
 
-        write_dialogs(dialogs, args.output_dir)
+            write_dialogs(dialogs, args.output_dir)
+        
+        except tweepy.TweepError:
+            continue
 
 
 if __name__ == '__main__':
