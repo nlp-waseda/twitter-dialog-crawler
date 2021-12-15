@@ -4,102 +4,111 @@ import glob
 import html
 import os
 import re
+from collections import defaultdict
 
 from tqdm import tqdm
 
-screen_name = re.compile(r'@[A-Za-z0-9_]{1,15}')
 
-ja = re.compile(r'[\u3000-\u30ff\u4e00-\u9fff]')
-not_ascii_nor_ja = re.compile(r'[^\u0000-\u007f\u3000-\u30ff\u4e00-\u9fff]')
+def read_dialogs(data_dir):
+    """対話を読み込む。
 
-min_length = 4
-rep = re.compile(r'(.+)\1{4}')
+    :param data_dir: 入力ディレクトリ
+    :type data_dir: str
+    :return: 読み込んだ対話の集合
+    :rtype: set
+    """
 
+    dialogs = set()
 
-def clean_text(text):
-    text = html.unescape(text)  # html escape
-
-    text = screen_name.sub('', text)  # screen name
-    text = ' '.join(text.split())
-
-    return text
-
-
-def clean_row(row):
-    return [clean_text(text) for text in row]
-
-
-def filter_text(text):
-    if not ja.search(text):  # no japanese
-        return False
-
-    if not_ascii_nor_ja.search(text):  # not ascii nor japanese
-        return False
-
-    if len(text) < min_length:  # length
-        return False
-
-    if rep.search(text):  # repetition
-        return False
-
-    return True
-
-
-def filter_row(row):
-    return all(filter_text(text) for text in row)
-
-
-def read_dialogs(data_dir, dialogs):
-    n_read = 0
-
-    data_tsvs = glob.glob(f'{data_dir}/*.tsv')
-    for data_tsv in tqdm(data_tsvs):
+    for data_tsv in glob.glob(f'{data_dir}/*.tsv'):
         with open(data_tsv, encoding='utf-8', newline='') as f:
             reader = csv.reader(f, delimiter='\t', quoting=csv.QUOTE_NONE)
             for row in reader:
-                row = clean_row(row)
+                dialogs.add(tuple(row))
 
-                if filter_row(row):
-                    dialogs.add('\t'.join(row))
-                            
-                n_read += 1
+    return dialogs
+
+
+def clean_dialogs(dialogs):
+    """対話をクリーニングする。
     
-    return n_read
+    :param dialogs: 対話の集合
+    :type dialogs: set
+    :return: クリーニングした対話の集合
+    :rtype: set
+    """
+
+    clean_dialogs = set()
+
+    for texts in tqdm(dialogs):
+        for text in texts:
+            clean_texts = []
+
+            for text in texts:
+                # HTMLのエスケープを除去
+                text = html.unescape(text)
+
+                # スクリーンネームを除去
+                text = re.sub(r'@[A-Za-z0-9_]{1,15}', '', text)
+                text = ' '.join(text.split())
+
+                # 日本語でない文字を含む
+                if re.search(r'[^\u3000-\u30ff\u4e00-\u9fff]', text):
+                    break
+
+                # 文字数
+                if len(text) < 4:
+                    break
+
+                # 文字や単語の繰り返し
+                if re.search(r'(.+)\1{4}', text):
+                    break
+
+                clean_texts.append(' '.join(text.split()))
+            
+            else:
+                clean_dialogs.add(tuple(clean_texts))
+
+    return clean_dialogs
 
 
 def write_dialogs(output_dir, dialogs):
-    turn_to_dialog = {}
-    n_written = 0
+    """発話の数ごとに対話を書き込む。
+
+    :param output_dir: 出力ディレクトリ
+    :type output_dir: str
+    :param dialogs: 対話の集合
+    :type dialogs: set
+    """
+    
+    n_turns_to_dialog = defaultdict(set)
 
     for dialog in dialogs:
-        n_turns = len(dialog.split('\t'))
-        if n_turns not in turn_to_dialog.keys():
-            turn_to_dialog[n_turns] = set()
-        
-        turn_to_dialog[n_turns].add(dialog)
+        n_turns = len(dialog)
+        n_turns_to_dialog[n_turns].add(dialog)
     
-    for n_turns, dialogs in turn_to_dialog.items():
+    for n_turns, dialogs in n_turns_to_dialog.items():
         with open(os.path.join(output_dir, f'{n_turns}.tsv'), 'w', encoding='utf-8') as f:
-            f.write('\n'.join(dialogs) + '\n')
-
-        n_written += len(dialogs)
-    
-    return n_written
+            for dialog in dialogs:
+                f.write('\t'.join(dialog) + '\n')
 
 
-def main(args):
-    dialogs = set()
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('raw_dir', help='生のディレクトリ')
+    parser.add_argument('cleaned_dir', help='クリーニングされたディレクトリ')
+    args = parser.parse_args()
 
-    n_read = read_dialogs(args.data_dir, dialogs)
-    n_written = write_dialogs(args.output_dir, dialogs)
+    dialogs = read_dialogs(args.raw_dir)
+    n_raw = len(dialogs)
 
-    print(f'Write {n_written} dialogues ({n_written / n_read:%})')
+    cleaned_dialogs = clean_dialogs(dialogs)
+    n_clean = len(cleaned_dialogs)
+
+    write_dialogs(args.cleaned_dir, cleaned_dialogs)
+
+    print(f'{n_clean}個の対話を書き込み（生の{n_clean / n_raw:%}）')
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('data_dir')
-    parser.add_argument('output_dir')
-    args = parser.parse_args()
-
-    main(args)
+    main()
