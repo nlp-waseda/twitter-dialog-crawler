@@ -8,7 +8,13 @@ import tweepy
 
 
 def filter_status(status):
-    """ステータスをフィルタリング"""
+    """ステータスをフィルタリングする。
+    
+    :param status: ステータス
+    :type status: tweepy.Status
+    :return: ステータスが適切ならば`True`、そうでなければ`False`
+    :rtype: bool
+    """
 
     # 人手でない
     if status.source not in [
@@ -32,7 +38,15 @@ def filter_status(status):
 
 
 def filter_dialog(full_texts, user_ids):
-    """一連のテキストをフィルタリング"""
+    """一連のテキストとユーザIDをフィルタリングする。
+    
+    :param full_texts: 一連のテキスト
+    :type full_texts: list
+    :param user_ids: 一連のユーザID
+    :type user_ids: list
+    :return: 一連のテキストとユーザIDが適切ならば`True`、そうでなければ`False`
+    :rtype: bool
+    """
 
     # 発話が2個未満
     if len(full_texts) < 2:
@@ -50,7 +64,16 @@ def filter_dialog(full_texts, user_ids):
 
 
 def get_user_ids(api, q):
-    """検索によって取得したユーザIDを返す"""
+    """検索によって取得したユーザIDの集合を返す。
+
+    :param api: API
+    :type api: tweepy.API
+    :param q: 検索クエリ
+    :type q: str
+    :raises tweepy.TweepyError: 検索におけるTweepyのエラー
+    :return: 取得したユーザIDの集合
+    :rtype: set
+    """
 
     user_ids = set()
 
@@ -73,7 +96,19 @@ def get_user_timeline(
     status_id_to_user_id,
     status_id_to_in_reply_to_status_id
 ):
-    """ユーザIDからタイムラインを取得し、リプライがあったユーザIDを返す"""
+    """ユーザIDからタイムラインを取得し、リプライがあったユーザIDを返す。
+
+    :param user_ids: タイムラインを取得するユーザIDの集合
+    :type user_ids: set
+    :param status_id_to_full_text: ステータスIDからテキストへのマッピング
+    :type status_id_to_full_text: dict
+    :param status_id_to_user_id: ステータスIDからユーザIDへのマッピング
+    :type status_id_to_user_id: dict
+    :param status_id_to_in_reply_to_status_id: リプライの木
+    :type status_id_to_in_reply_to_status_id: dict
+    :return: リプライがあったユーザIDの集合
+    :rtype: set
+    """
 
     in_reply_to_user_ids = set()
 
@@ -86,13 +121,15 @@ def get_user_timeline(
             for status in user_timeline:
                 # 適切なステータスを格納
                 if filter_status(status):
-                    status_id_to_full_text[status.id] = ' '.join(status.full_text.split())
+                    status_id_to_full_text[status.id] \
+                            = ' '.join(status.full_text.split())
                     status_id_to_user_id[status.id] = status.author.id
 
                     # リプライならば宛先も格納
                     if status.in_reply_to_status_id is not None:
                         in_reply_to_user_ids.add(status.in_reply_to_user_id)
-                        status_id_to_in_reply_to_status_id[status.id] = status.in_reply_to_status_id
+                        status_id_to_in_reply_to_status_id[status.id] \
+                                = status.in_reply_to_status_id
 
         except tweepy.TweepError:
             pass
@@ -105,7 +142,17 @@ def build_dialogs(
     status_id_to_user_id,
     status_id_to_in_reply_to_status_id
 ):
-    """リプライの木を走査し、構築された対話を返す"""
+    """リプライの木を走査し、構築した対話を返す。
+
+    :param status_id_to_full_text: ステータスIDからテキストへのマッピング
+    :type status_id_to_full_text: dict
+    :param status_id_to_user_id: ステータスIDからユーザIDへのマッピング
+    :type status_id_to_user_id: dict
+    :param status_id_to_in_reply_to_status_id: リプライの木
+    :type status_id_to_in_reply_to_status_id: dict
+    :return: 構築した対話の集合
+    :rtype: set
+    """
 
     dialogs = set()
 
@@ -140,7 +187,13 @@ def build_dialogs(
 
 
 def write_dialogs(dialogs, output_dir):
-    """対話を書き込む"""
+    """対話をファイルに書き込む。
+    
+    :param dialogs: 書き込む対話
+    :type dialogs: list
+    :param output_dir: 出力ディレクトリ
+    :type output_dir: str
+    """
 
     now = datetime.now()
     output_tsv = f'{now:%Y%m%d%H%M%S%f}.tsv'
@@ -149,7 +202,7 @@ def write_dialogs(dialogs, output_dir):
         for dialog in dialogs:
             f.write('\t'.join(dialog) + '\n')
 
-    print(f'{len(dialogs)}個の対話を書き込み')
+    print(f'{len(dialogs)}個の対話を{output_tsv}に書き込み')
 
 
 def main():
