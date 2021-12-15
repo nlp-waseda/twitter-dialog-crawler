@@ -2,70 +2,97 @@ import argparse
 import os
 from datetime import datetime
 
-# from dotenv import load_dotenv
 from dotenv import dotenv_values
 from tqdm import tqdm
 import tweepy
 
 
 def filter_status(status):
-    if status.source not in ['Twitter for Android', 'Twitter for iPhone', 'Twitter Web App']:  # by human
+    """ステータスをフィルタリング"""
+
+    # 人手でない
+    if status.source not in [
+        'Twitter for Android', 'Twitter for iPhone', 'Twitter Web App'
+    ]:
         return False
     
-    if len(status.entities['hashtags']) > 0:  # has hashtags
+    # ハッシュタグを含む
+    if len(status.entities['hashtags']) > 0:
         return False
 
-    if len(status.entities['urls']) > 0:  # has urls
+    # URLを含む
+    if len(status.entities['urls']) > 0:
         return False
 
-    if 'media' in status.entities:  # has media
+    # 画像などを含む
+    if 'media' in status.entities:
         return False
 
     return True
 
 
 def filter_dialog(full_texts, user_ids):
-    if len(full_texts) < 2:  # not dialog
+    """一連のテキストをフィルタリング"""
+
+    # 発話が2個未満
+    if len(full_texts) < 2:
         return False
     
-    if len(set(user_ids)) != 2:  # not bi-party
+    # 話者が2人でない
+    if len(set(user_ids)) != 2:
         return False
 
-    if any(user_ids[i] == user_ids[i+1] for i in range(len(user_ids) - 1)):  # not alternating
+    # 発話が交互でない
+    if any(user_ids[i] == user_ids[i+1] for i in range(len(user_ids) - 1)):
         return False
     
     return True
 
 
 def get_user_ids(api, q):
+    """検索によって取得したユーザIDを返す"""
+
     user_ids = set()
 
-    # try:
-    search_results = api.search(q=q, lang='ja', result_type='recent', count=100, tweet_mode='extended')
-    for status in tqdm(search_results, desc='get user ids'):
+    search_results = api.search(
+        q=q, lang='ja', result_type='recent', count=100, tweet_mode='extended'
+    )
+
+    for status in tqdm(search_results, desc='ユーザIDを取得'):
+        # 適切なステータスのユーザIDを追加
         if filter_status(status):
             user_ids.add(status.author.id)
-
-    # except tweepy.TweepError as e:
-    #     raise
 
     return user_ids
 
 
-def get_user_timeline(api, user_ids, text_map, user_map, reply_tree):
+def get_user_timeline(
+    api,
+    user_ids, 
+    status_id_to_full_text,
+    status_id_to_user_id,
+    status_id_to_in_reply_to_status_id
+):
+    """ユーザIDからタイムラインを取得し、リプライがあったユーザIDを返す"""
+
     in_reply_to_user_ids = set()
 
-    for user_id in tqdm(user_ids, desc='get user timeline'):
+    for user_id in tqdm(user_ids, desc='タイムラインを取得'):
         try:
-            user_timeline = api.user_timeline(user_id=user_id, count=200, tweet_mode='extended')
-            for status in user_timeline:
-                if filter_status(status):
-                    text_map[status.id] = ' '.join(status.full_text.split())
-                    user_map[status.id] = status.author.id
+            user_timeline = api.user_timeline(
+                user_id=user_id, count=200, tweet_mode='extended'
+            )
 
+            for status in user_timeline:
+                # 適切なステータスを格納
+                if filter_status(status):
+                    status_id_to_full_text[status.id] = ' '.join(status.full_text.split())
+                    status_id_to_user_id[status.id] = status.author.id
+
+                    # リプライならば宛先も格納
                     if status.in_reply_to_status_id is not None:
                         in_reply_to_user_ids.add(status.in_reply_to_user_id)
-                        reply_tree[status.id] = status.in_reply_to_status_id
+                        status_id_to_in_reply_to_status_id[status.id] = status.in_reply_to_status_id
 
         except tweepy.TweepError:
             pass
@@ -73,49 +100,66 @@ def get_user_timeline(api, user_ids, text_map, user_map, reply_tree):
     return in_reply_to_user_ids
 
 
-def build_dialogs(text_map, user_map, reply_tree):
-    dialogs = []
+def build_dialogs(
+    status_id_to_full_text,
+    status_id_to_user_id,
+    status_id_to_in_reply_to_status_id
+):
+    """リプライの木を走査し、構築された対話を返す"""
 
-    status_ids = set(reply_tree.keys()) - set(reply_tree.values())  # is leaf
-    for status_id in tqdm(status_ids, desc='build dialogs'):
+    dialogs = set()
+
+    # 葉
+    status_ids = set(status_id_to_in_reply_to_status_id.keys()) \
+            - set(status_id_to_in_reply_to_status_id.values())
+
+    for status_id in tqdm(status_ids, desc='対話を構築'):
         full_texts = []
         user_ids = []
 
         while True:
-            if status_id not in text_map.keys():  # continues
+            # 根が無い
+            if status_id not in status_id_to_full_text.keys():
                 break
 
-            full_texts.append(text_map[status_id])
-            user_ids.append(user_map[status_id])
+            full_texts.append(status_id_to_full_text[status_id])
+            user_ids.append(status_id_to_user_id[status_id])
 
-            if status_id not in reply_tree.keys():  # is root
+            # 根
+            if status_id not in status_id_to_in_reply_to_status_id.keys():
+                # 対話として適切なテキストを追加
                 if filter_dialog(full_texts, user_ids):
-                    dialogs.append(reversed(full_texts))
+                    dialogs.add(tuple(reversed(full_texts)))
                 
                 break
 
-            status_id = reply_tree[status_id]
+            # ステータスIDを更新
+            status_id = status_id_to_in_reply_to_status_id[status_id]
 
     return dialogs
 
 
 def write_dialogs(dialogs, output_dir):
-    output_tsv = f'{datetime.now():%Y%m%d%H%M%S%f}.tsv'
+    """対話を書き込む"""
+
+    now = datetime.now()
+    output_tsv = f'{now:%Y%m%d%H%M%S%f}.tsv'
+
     with open(os.path.join(output_dir, output_tsv), 'w', encoding='utf-8') as f:
         for dialog in dialogs:
             f.write('\t'.join(dialog) + '\n')
 
-    print(f'{len(dialogs)} dialogs written.')
+    print(f'{len(dialogs)}個の対話を書き込み')
 
 
-def main(args):
-    # load_dotenv()
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('output_dir', help='出力ディレクトリ')
+    parser.add_argument('--dotenv_path', default='.env', help='.envのパス')
+    parser.add_argument('--q', default='い', help='検索クエリ')
+    args = parser.parse_args()
 
-    # consumer_key = os.environ['CONSUMER_KEY']
-    # consumer_secret = os.environ['CONSUMER_SECRET']
-    # access_token = os.environ['ACCESS_TOKEN']
-    # access_token_secret = os.environ['ACCESS_TOKEN_SECRET']
-
+    # キーとトークン
     config = dotenv_values(args.dotenv_path)
 
     consumer_key = config['CONSUMER_KEY']
@@ -123,25 +167,47 @@ def main(args):
     access_token = config['ACCESS_TOKEN']
     access_token_secret = config['ACCESS_TOKEN_SECRET']
 
+    # 認証
     auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
     auth.set_access_token(access_token, access_token_secret)
 
-    api = tweepy.API(auth, wait_on_rate_limit=True, wait_on_rate_limit_notify=True)
+    api = tweepy.API(
+        auth, wait_on_rate_limit=True, wait_on_rate_limit_notify=True
+    )
 
+    # 収集
     while True:
         try:
             user_ids = get_user_ids(api, q=args.q)
 
-            text_map = {}  # status_id -> full_text
-            user_map = {}  # status_id -> user_id
+            status_id_to_full_text = {}
+            status_id_to_user_id = {}
 
-            reply_tree = {}  # status_id -> in_reply_to_status_id
+            status_id_to_in_reply_to_status_id = {}
 
-            in_reply_to_user_ids = get_user_timeline(api, user_ids, text_map, user_map, reply_tree)
-            get_user_timeline(api, in_reply_to_user_ids - user_ids, text_map, user_map, reply_tree)
+            # 適当なユーザIDのタイムラインを取得
+            in_reply_to_user_ids = get_user_timeline(
+                api,
+                user_ids,
+                status_id_to_full_text,
+                status_id_to_user_id,
+                status_id_to_in_reply_to_status_id
+            )
 
-            # traverse tree
-            dialogs = build_dialogs(text_map, user_map, reply_tree)
+            # 宛先にあったユーザIDのタイムラインを取得
+            get_user_timeline(
+                api,
+                in_reply_to_user_ids - user_ids,
+                status_id_to_full_text,
+                status_id_to_user_id,
+                status_id_to_in_reply_to_status_id
+            )
+
+            dialogs = build_dialogs(
+                status_id_to_full_text,
+                status_id_to_user_id,
+                status_id_to_in_reply_to_status_id
+            )
 
             write_dialogs(dialogs, args.output_dir)
         
@@ -150,10 +216,4 @@ def main(args):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('output_dir')
-    parser.add_argument('--dotenv_path', default='.env')
-    parser.add_argument('--q', default='い')
-    args = parser.parse_args()
-
-    main(args)
+    main()
