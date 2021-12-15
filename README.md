@@ -34,12 +34,15 @@ python crawl.py $OUTPUT_DIR --dotenv_path $DOTENV_PATH --q $Q
 ### クリーニング
 
 収集した対話は`clean.py`によってクリーニングします。
+
+`crawl.py`の出力ディレクトリと、新たな出力ディレクトリをそれぞれ指定してください。
 日本語でない文字を含むものや短すぎるもの、繰り返しが多いものを除去します。
+ASCIIを日本語に含める場合は、`--allow_ascii`を指定してください。
 
 対話は発話の数ごとにTSV形式で保存されます。
 
 ```
-python clean.py $RAW_DIR $CLEAN_DIR
+python clean.py $RAW_DIR $CLEAN_DIR --allow_ascii
 ```
 
 ### 分かち書き

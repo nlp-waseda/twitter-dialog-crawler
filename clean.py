@@ -29,11 +29,13 @@ def read_dialogs(data_dir):
     return dialogs
 
 
-def clean_dialogs(dialogs):
+def clean_dialogs(dialogs, allow_ascii):
     """対話をクリーニングする。
     
     :param dialogs: 対話の集合
     :type dialogs: set
+    :param allow_ascii: ASCIIを除去するかしないか
+    :type allow_ascii: bool
     :return: クリーニングした対話の集合
     :rtype: set
     """
@@ -52,9 +54,19 @@ def clean_dialogs(dialogs):
                 text = re.sub(r'@[A-Za-z0-9_]{1,15}', '', text)
                 text = ' '.join(text.split())
 
-                # 日本語でない文字を含む
-                if re.search(r'[^\u3000-\u30ff\u4e00-\u9fff]', text):
-                    break
+                if allow_ascii:
+                    # 日本語の文字を含まない
+                    if not re.search(r'[\u3000-\u30ff\u4e00-\u9fff]', text):
+                        break
+
+                    # ASCIIでも日本語でもない文字を含む
+                    if re.search(r'[^\u0000-\u007f\u3000-\u30ff\u4e00-\u9fff]', text):
+                        break
+
+                else:
+                    # 日本語でない文字を含む
+                    if re.search(r'[^\u3000-\u30ff\u4e00-\u9fff]', text):
+                        break
 
                 # 文字数
                 if len(text) < 4:
@@ -88,7 +100,8 @@ def write_dialogs(output_dir, dialogs):
         n_turns_to_dialog[n_turns].add(dialog)
     
     for n_turns, dialogs in n_turns_to_dialog.items():
-        with open(os.path.join(output_dir, f'{n_turns}.tsv'), 'w', encoding='utf-8') as f:
+        output_path = os.path.join(output_dir, f'{n_turns}.tsv')
+        with open(output_path, 'w', encoding='utf-8') as f:
             for dialog in dialogs:
                 f.write('\t'.join(dialog) + '\n')
 
@@ -97,12 +110,15 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('raw_dir', help='生のディレクトリ')
     parser.add_argument('cleaned_dir', help='クリーニングされたディレクトリ')
+    parser.add_argument(
+        '--allow_ascii', action='store_true', help='ASCIIを除去しない'
+    )
     args = parser.parse_args()
 
     dialogs = read_dialogs(args.raw_dir)
     n_raw = len(dialogs)
 
-    cleaned_dialogs = clean_dialogs(dialogs)
+    cleaned_dialogs = clean_dialogs(dialogs, allow_ascii=args.allow_ascii)
     n_clean = len(cleaned_dialogs)
 
     write_dialogs(args.cleaned_dir, cleaned_dialogs)
