@@ -42,16 +42,16 @@ ASCIIを日本語に含める場合は、`--allow_ascii`を指定してくださ
 対話は発話の数ごとにTSV形式で保存されます。
 
 ```
-python clean.py $RAW_DIR $CLEAN_DIR --allow_ascii
+python clean.py $RAW_DIR $CLEANED_DIR --allow_ascii
 ```
 
 ### 分かち書き
 
-クリーニングされた対話を分かち書きします。
-半角を全角に正規化し、Juman++で形態素解析を行います。
+クリーニングした対話を分かち書きします。
+半角を全角に正規化し、Juman++で形態素解析をします。
 
 ```
-python mrph.py $CLEAN_DIR $MRPH_DIR
+python mrph.py $CLEANED_DIR $MRPH_DIR
 ```
 
 ## 参考
@@ -65,4 +65,3 @@ python mrph.py $CLEAN_DIR $MRPH_DIR
 
 - https://saurabh-kumar.com/python-dotenv/
 - https://www.tweepy.org/
-- https://nlp.ist.i.kyoto-u.ac.jp/?PyKNP

@@ -7,12 +7,20 @@ import zenhan
 from pyknp import Juman
 
 
-def main(args):
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('cleaned_dir', help='クリーニングしたディレクトリ')
+    parser.add_argument('mrph_dir', help='分かち書きしたディレクトリ')
+    args = parser.parse_args()
+
     jumanpp = Juman()
-    
-    for tsv in tqdm(os.listdir(args.data_dir)):
+
+    for tsv in tqdm(os.listdir(args.cleaned_dir)):
+        cleaned_tsv = os.path.join(args.cleaned_dir, tsv)
+        mrph_tsv = os.path.join(args.mrph_dir, tsv)
+
         mrph_rows = []
-        with open(os.path.join(args.data_dir, tsv), newline='') as f:
+        with open(cleaned_tsv, encoding='utf-8', newline='') as f:
             reader = csv.reader(f, delimiter='\t', quoting=csv.QUOTE_NONE)
             for row in reader:
                 mrph_row = []
@@ -22,15 +30,10 @@ def main(args):
                 
                 mrph_rows.append(mrph_row)
         
-        with open(os.path.join(args.output_dir, tsv), 'w', newline='') as f:
+        with open(mrph_tsv, 'w', encoding='utf-8', newline='') as f:
             writer = csv.writer(f, delimiter='\t', quoting=csv.QUOTE_NONE)
             writer.writerows(mrph_rows)
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('data_dir')
-    parser.add_argument('output_dir')
-    args = parser.parse_args()
-
-    main(args)
+    main()
