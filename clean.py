@@ -29,13 +29,15 @@ def read_dialogs(data_dir):
     return dialogs
 
 
-def clean_dialogs(dialogs, allow_ascii):
+def clean_dialogs(dialogs, allow_ascii, remove_non_ja):
     """対話をクリーニングする。
     
     :param dialogs: 対話の集合
     :type dialogs: set
-    :param allow_ascii: ASCIIを除去するかしないか
+    :param allow_ascii: ASCIIを日本語として許容するか
     :type allow_ascii: bool
+    :param remove_non_ja: 日本語でない文字を削除するか
+    :type remove_non_ja: bool
     :return: クリーニングした対話の集合
     :rtype: set
     """
@@ -55,18 +57,28 @@ def clean_dialogs(dialogs, allow_ascii):
                 text = ' '.join(text.split())
 
                 if allow_ascii:
-                    # 日本語の文字を含まない
-                    if not re.search(r'[\u3000-\u30ff\u4e00-\u9fff]', text):
-                        break
+                    if remove_non_ja:
+                        # ASCIIでも日本語でもない文字を削除
+                        text = re.sub(r'[^\u0000-\u007f\u3000-\u30ff\u4e00-\u9fff]', '', text)
 
-                    # ASCIIでも日本語でもない文字を含む
-                    if re.search(r'[^\u0000-\u007f\u3000-\u30ff\u4e00-\u9fff]', text):
-                        break
+                    else:
+                        # 日本語の文字を含まない
+                        if not re.search(r'[\u3000-\u30ff\u4e00-\u9fff]', text):
+                            break
+
+                        # ASCIIでも日本語でもない文字を含む
+                        if re.search(r'[^\u0000-\u007f\u3000-\u30ff\u4e00-\u9fff]', text):
+                            break
 
                 else:
-                    # 日本語でない文字を含む
-                    if re.search(r'[^\u3000-\u30ff\u4e00-\u9fff]', text):
-                        break
+                    if remove_non_ja:
+                        # 日本語でない文字を削除
+                        text = re.sub(r'[^\u3000-\u30ff\u4e00-\u9fff]', '', text)
+
+                    else:
+                        # 日本語でない文字を含む
+                        if re.search(r'[^\u3000-\u30ff\u4e00-\u9fff]', text):
+                            break
 
                 # 文字数
                 if len(text) < 4:
@@ -109,16 +121,19 @@ def write_dialogs(output_dir, dialogs):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('raw_dir', help='生のディレクトリ')
-    parser.add_argument('cleaned_dir', help='クリーニングされたディレクトリ')
+    parser.add_argument('cleaned_dir', help='クリーニングしたディレクトリ')
     parser.add_argument(
-        '--allow_ascii', action='store_true', help='ASCIIを除去しない'
+        '--allow_ascii', action='store_true', help='ASCIIを日本語として許容する'
+    )
+    parser.add_argument(
+        '--remove_non_ja', action='store_true', help='日本語でない文字を削除する'
     )
     args = parser.parse_args()
 
     dialogs = read_dialogs(args.raw_dir)
     n_raw = len(dialogs)
 
-    cleaned_dialogs = clean_dialogs(dialogs, allow_ascii=args.allow_ascii)
+    cleaned_dialogs = clean_dialogs(dialogs, args.allow_ascii, args.remove_non_ja)
     n_clean = len(cleaned_dialogs)
 
     write_dialogs(args.cleaned_dir, cleaned_dialogs)
