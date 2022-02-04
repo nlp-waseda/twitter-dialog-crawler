@@ -29,23 +29,8 @@ crawlの出力ディレクトリと出力TSVファイル名を指定してくだ
 python -m crawler.clean $DATA_DIR $OUTPUT_TSV --remove_non_ja --include_ascii_in_ja
 ```
 
-### 分かち書き
-
-クリーニングした対話を分かち書きします。
-半角を全角に正規化し、Juman++で形態素解析をします。
-
-```
-python mrph.py $CLEANED_DIR $MRPH_DIR
-```
-
 ## 参考
 
-### Pythonでつくる対話システム
-
 - https://www.ohmsha.co.jp/book/9784274224799/
-- https://github.com/dsbook/dsbook
-
-### パッケージ
-
-- https://saurabh-kumar.com/python-dotenv/
 - https://www.tweepy.org/
+- https://developer.twitter.com/en/docs/twitter-api/v1
