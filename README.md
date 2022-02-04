@@ -9,41 +9,24 @@ Twitterからマルチターンの対話を収集するためのクローラで�
 収集にはAPIが必要です。
 APIを取得したら、Consumer KeyやAccess Tokenなどを記載した`.env`を用意してください。
 
-```
-CONSUMER_KEY=
-CONSUMER_SECRET=
-ACCESS_TOKEN=
-ACCESS_TOKEN_SECRET=
-```
+### crawl
 
-### 収集
+コマンドライン引数で出力ディレクトリを指定してください。APIを使い分ける場合、`--dotenv_path`で使いたい`.env`を指定してください。ユーザIDの取得における検索クエリは`--q`で指定してください。
 
-`crawl.py`で対話を収集します。
+対話はTSV形式で保存されます。各行はタブで区切られた一連の発話です。
 
-コマンドライン引数で、対話を出力するディレクトリを指定してください。
-`.env`を使い分ける場合は、`--dotenv_path`で使いたいファイルを指定してください。
-またユーザIDの取得における検索クエリを与えたい場合は、`--q`でそれを指定してください。
-
-対話はTSV形式で保存されます。
-各行はタブで区切られた一連の発話です。
-
-```
-python crawl.py $OUTPUT_DIR --dotenv_path $DOTENV_PATH --q $Q
+```bash
+python -m crawler.crawl $OUTPUT_DIR --dotenv_path $DOTENV_PATH --q $Q
 ```
 
-### クリーニング
+### clean
 
-収集した対話は`clean.py`によってクリーニングします。
+crawlの出力ディレクトリと出力TSVファイル名を指定してください。日本語でない文字を含む対話や短すぎる発話を含むもの、文字や単語を繰り返す発話を含むものを除去します。
 
-`crawl.py`の出力ディレクトリと、新たな出力ディレクトリをそれぞれ指定してください。
-日本語でない文字を含むものや短すぎるもの、繰り返しが多いものを除去します。
-ASCIIを日本語に含める場合は、`--allow_ascii`を指定してください。
-日本語でない文字を含む対話を弾かずにその文字だけを消す場合は、`--remove_non_ja`を指定してください。
+日本語でない文字を含む対話を除外せずにその文字だけを削除する場合、`--remove_non_ja`を指定してください。またASCIIを日本語として扱う場合、`--include_ascii_in_ja`を指定してください。
 
-対話は発話の数ごとにTSV形式で保存されます。
-
-```
-python clean.py $RAW_DIR $CLEANED_DIR --allow_ascii
+```bash
+python -m crawler.clean $DATA_DIR $OUTPUT_TSV --remove_non_ja --include_ascii_in_ja
 ```
 
 ### 分かち書き
